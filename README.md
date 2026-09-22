@@ -3,6 +3,7 @@
 TurfMatch is a Bengaluru-only, 8v8 football club matching MVP. A club owner creates a game, fills eight internal player slots, publishes it for opponent discovery, and approves one rival club to create a confirmed fixture.
 
 The product rules are in [docs/product-spec.md](docs/product-spec.md).
+The current implementation snapshot and remaining gaps are in [docs/checkpoint-2026-09-23.md](docs/checkpoint-2026-09-23.md).
 
 ## What works in V1
 
