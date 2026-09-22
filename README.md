@@ -1,101 +1,81 @@
 # TurfMatch
 
-Football matchmaking app for 5v5 turf games.
+TurfMatch is a Bengaluru-only, 8v8 football club matching MVP. A club owner creates a game, fills eight internal player slots, publishes it for opponent discovery, and approves one rival club to create a confirmed fixture.
 
-Current repo structure:
+The product rules are in [docs/product-spec.md](docs/product-spec.md).
 
-- `frontend/` - Next.js mobile-style web app
-- `backend/` - FastAPI API
-- `docker-compose.yml` - local PostgreSQL
+## What works in V1
 
-## PostgreSQL Docker Details
+- Phone number and password signup/login.
+- Football profile with skill level and position.
+- Club creation and owner-approved player join requests.
+- 8v8 game creation with venue, time, cost, and skill level.
+- Invite active club members; members accept or reject game invitations.
+- A game can publish only after eight players accept.
+- Club owners can pass or challenge published opponent cards.
+- Host owners can approve one challenge and confirm a fixture.
 
-The local PostgreSQL instance is defined in [docker-compose.yml](/Users/sharmindabadmash/Documents/Matching/docker-compose.yml).
+## Local setup
 
-Credentials:
+Requirements:
 
-- `Container name`: `turfmatch_postgres`
-- `Database`: `turfmatch`
-- `Username`: `turfmatch`
-- `Password`: `turfmatch`
-- `Port`: `5432`
+- Python 3.11
+- Node.js 20 or later
+- Docker Desktop
 
-Important:
-
-- `turfmatch_postgres` is the Docker container name.
-- From apps running on your Mac, including pgAdmin, use `127.0.0.1` as the host.
-- Do not use `postgres` as the username or database for this container.
-
-pgAdmin connection values:
-
-- `Host name/address`: `127.0.0.1`
-- `Port`: `5432`
-- `Maintenance database`: `turfmatch`
-- `Username`: `turfmatch`
-- `Password`: `turfmatch`
-
-Equivalent connection string:
-
-```text
-postgresql://turfmatch:turfmatch@127.0.0.1:5432/turfmatch
-```
-
-## Start Docker Database
-
-From the repo root:
+Start PostgreSQL from the project root:
 
 ```bash
-cd /Users/sharmindabadmash/Documents/Matching
+cd /Users/sharmindabadmash/Documents/projs/Matching
 docker compose up -d db
-docker ps
 ```
 
-Expected container:
-
-- `turfmatch_postgres`
-
-## Backend Setup
-
-Use Python 3.11.
+Prepare the backend, migrate PostgreSQL, and seed demo data:
 
 ```bash
-cd /Users/sharmindabadmash/Documents/Matching/backend
+cd /Users/sharmindabadmash/Documents/projs/Matching/backend
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
 python -m app.seed
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8010
 ```
 
-Backend docs:
+Open API documentation at [http://127.0.0.1:8010/docs](http://127.0.0.1:8010/docs).
 
-- [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
-## Frontend Setup
+Start the frontend in a second terminal:
 
 ```bash
-cd /Users/sharmindabadmash/Documents/Matching/frontend
+cd /Users/sharmindabadmash/Documents/projs/Matching/frontend
 npm install
-npm run dev
+npm run dev -- --port 3002
 ```
 
-Frontend app:
+Open [http://localhost:3002](http://localhost:3002). The frontend expects the backend at `http://127.0.0.1:8010/api/v1`; override it with `NEXT_PUBLIC_API_BASE_URL` if needed. See `frontend/.env.local.example`.
 
-- [http://localhost:3000](http://localhost:3000)
+## Demo accounts
 
-## Useful Checks
+Run `python -m app.seed` once after migrations. It creates two club-owner accounts:
 
-Verify Docker Postgres from terminal:
-
-```bash
-docker exec -it turfmatch_postgres psql -U turfmatch -d turfmatch
+```text
+Indiranagar FC owner: +919000000001
+Koramangala United owner: +919000000002
+Password for both: turfmatch123
 ```
 
-If pgAdmin cannot connect, check these first:
+The seed creates eight additional active players for each club. They use the same password and phone numbers from `+919000000003` upward.
 
-- Host must be `127.0.0.1`
-- Username must be `turfmatch`
-- Database must be `turfmatch`
-- Password must be `turfmatch`
-- Docker container must be running
+## PostgreSQL
+
+```text
+Host: 127.0.0.1
+Port: 5432
+Database: turfmatch
+User: turfmatch
+Password: turfmatch
+```
+
+## Deliberately deferred
+
+Real OTP, payment processing, turf inventory/booking, push notifications, chat, ratings, verification, extra cities, and formats beyond 8v8 are intentionally outside this V1.

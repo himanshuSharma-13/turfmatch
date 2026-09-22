@@ -1,6 +1,6 @@
 # TurfMatch Backend
 
-FastAPI backend for the football matchmaking MVP.
+FastAPI backend for the Bengaluru 8v8 football club matchmaking MVP.
 
 ## Local Setup
 
@@ -29,11 +29,11 @@ python -m app.seed
 Start the API:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8010
 ```
 
 Open Swagger docs:
 
 ```text
-http://localhost:8000/docs
+http://localhost:8010/docs
 ```

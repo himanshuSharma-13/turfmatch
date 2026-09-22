@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TurfMatch",
-  description: "Find 5v5 football opponents and local clubs."
+  description: "Find 8v8 football opponents and local clubs in Bengaluru."
 };
 
 export const viewport: Viewport = {
