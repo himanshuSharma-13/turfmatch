@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Check, ChevronRight, CirclePlus, Compass, LogOut, Users, X } from "lucide-react";
+import { CalendarDays, Check, CirclePlus, Compass, LogOut, Users, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import DiscoverView, { type DiscoverCard } from "./discover-view";
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010/api/v1";
 type Tab = "clubs" | "games" | "discover" | "requests" | "profile";
@@ -11,7 +12,6 @@ type User = { id: string; phone_number: string; display_name: string; city: stri
 type Club = { id: string; owner_id: string; name: string; city: string; area: string; home_turf: string; description: string; skill_level: Skill; availability: string; play_style: string; rating: number; player_count: number };
 type Member = { id: string; club_id: string; user_id: string; display_name: string; phone_number: string; role: "owner" | "player"; status: "pending" | "active" | "removed"; position?: string; skill_level?: Skill };
 type Game = { id: string; club_id: string; club_name: string; venue: string; venue_area: string; scheduled_at: string; cost_per_person: string; skill_level: Skill; format: string; host_player_target: number; host_open_slots: number; accepted_players: number; pending_players: number; status: string; opponent_club_id?: string; opponent_club_name?: string };
-type Card = { id: string; club_id: string; club_name: string; club_area: string; club_skill_level: Skill; club_rating: number; venue_area: string; scheduled_at: string; cost_per_person: string; format: string };
 type Challenge = { id: string; game_id: string; host_club_id: string; host_club_name: string; challenger_club_id: string; challenger_club_name: string; status: string; confirmed_at?: string };
 
 async function api<T>(path: string, token?: string | null, options?: RequestInit): Promise<T> {
@@ -42,8 +42,9 @@ export default function HomePage() {
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [members, setMembers] = useState<Member[]>([]);
   const [joinRequests, setJoinRequests] = useState<Member[]>([]);
-  const [cards, setCards] = useState<Card[]>([]);
+  const [cards, setCards] = useState<DiscoverCard[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [outgoingChallenges, setOutgoingChallenges] = useState<Challenge[]>([]);
   const [notice, setNotice] = useState<string>("");
   const [error, setError] = useState<string>("");
 
@@ -86,16 +87,18 @@ export default function HomePage() {
   async function loadClubWorkspace(clubId: string) {
     if (!token) return;
     try {
-      const [memberList, challengeList, cardList, gameList, pendingMembers] = await Promise.all([
+      const [memberList, challengeList, cardList, gameList, pendingMembers, outgoing] = await Promise.all([
         api<Member[]>(`/clubs/${clubId}/members`, token),
         api<Challenge[]>(`/clubs/${clubId}/challenges/incoming`, token),
-        api<Card[]>(`/match-cards/feed?club_id=${clubId}`, token),
+        api<DiscoverCard[]>(`/match-cards/feed?club_id=${clubId}`, token),
         api<Game[]>(`/clubs/${clubId}/games`),
-        api<Member[]>(`/clubs/${clubId}/join-requests`, token)
+        api<Member[]>(`/clubs/${clubId}/join-requests`, token),
+        api<Challenge[]>(`/clubs/${clubId}/challenges/outgoing`, token)
       ]);
       setMembers(memberList);
       setChallenges(challengeList);
       setCards(cardList);
+      setOutgoingChallenges(outgoing);
       setClubGames(gameList);
       setJoinRequests(pendingMembers);
     } catch (loadError) {
@@ -119,6 +122,7 @@ export default function HomePage() {
     setClubGames([]);
     setCards([]);
     setChallenges([]);
+    setOutgoingChallenges([]);
     setJoinRequests([]);
   }
 
@@ -153,14 +157,16 @@ export default function HomePage() {
     }
   }
 
-  async function swipe(card: Card, direction: "like" | "pass") {
-    if (!selectedClub) return;
+  async function swipe(card: DiscoverCard, direction: "like" | "pass"): Promise<boolean> {
+    if (!selectedClub) return false;
     try {
       await api(`/match-cards/${card.id}/swipe`, token, { method: "POST", body: JSON.stringify({ club_id: selectedClub.id, direction }) });
-      setNotice(direction === "like" ? "Challenge sent to the host club." : "Card passed.");
+      setNotice(direction === "like" ? "Game request sent. The host captain will review it." : "Card passed.");
       await loadClubWorkspace(selectedClub.id);
+      return true;
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to act on card.");
+      return false;
     }
   }
 
@@ -180,8 +186,8 @@ export default function HomePage() {
         {(notice || error) && <div className={`mb-4 flex items-start justify-between gap-2 rounded-md border px-3 py-2 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}><span>{error || notice}</span><button aria-label="Dismiss" onClick={() => { setNotice(""); setError(""); }}><X size={16} /></button></div>}
         {tab === "clubs" && <ClubsView clubs={clubs} ownedClubs={ownedClubs} onJoin={joinClub} onCreated={async () => { await loadApp(); setTab("profile"); }} token={token} onError={setError} onNotice={setNotice} />}
         {tab === "games" && <GamesView token={token} games={games} clubGames={clubGames} ownedClubs={ownedClubs} selectedClub={selectedClub} members={members} onRefresh={async () => { await loadApp(); if (selectedClub) await loadClubWorkspace(selectedClub.id); }} onNotice={setNotice} onError={setError} />}
-        {tab === "discover" && <DiscoverView cards={cards} selectedClub={selectedClub} onSwipe={swipe} />}
-        {tab === "requests" && <RequestsView joinRequests={joinRequests} challenges={challenges} fixtures={fixtures} onMembershipDecision={decideMembership} onDecision={decideChallenge} />}
+        {tab === "discover" && <DiscoverView cards={cards} clubName={selectedClub?.name} onSwipe={swipe} />}
+        {tab === "requests" && <RequestsView joinRequests={joinRequests} challenges={challenges} outgoingChallenges={outgoingChallenges} fixtures={fixtures} onMembershipDecision={decideMembership} onDecision={decideChallenge} />}
         {tab === "profile" && <ProfileView user={user} ownedClubs={ownedClubs} selectedClubId={selectedClub?.id ?? ""} onClubChange={setSelectedClubId} onLogout={logout} />}
       </section>
 
@@ -228,8 +234,93 @@ function GamesView({ token, games, clubGames, ownedClubs, selectedClub, members,
   return <div className="space-y-4"><div className="flex items-center justify-between"><div><h2 className="text-xl font-bold">Games</h2><p className="text-sm text-slate-500">Fill eight players before publishing.</p></div>{selectedClub && <button className={buttonClass} onClick={() => setCreating(!creating)}><CirclePlus size={16} /> New game</button>}</div>{ownedClubs.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">Create a club first to schedule a game.</p>}{creating && <form onSubmit={create} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4"><input required name="venue" placeholder="Turf name" className={fieldClass} /><input required name="area" placeholder="Turf area" className={fieldClass} /><input required name="time" type="datetime-local" className={fieldClass} /><input required name="cost" type="number" min="0" placeholder="Cost per player" className={fieldClass} /><select name="skill" className={fieldClass}><option value="casual">Casual</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option></select><button className={buttonClass}>Create draft</button></form>}{activeGame && <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold">Invite club members</h3><p className="mt-1 text-sm text-slate-600">Select up to eight players for this game.</p><div className="mt-3 space-y-2">{activeMembers.map((member) => <label key={member.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedPlayers.includes(member.user_id)} disabled={!selectedPlayers.includes(member.user_id) && selectedPlayers.length >= 8} onChange={() => setSelectedPlayers((values) => values.includes(member.user_id) ? values.filter((id) => id !== member.user_id) : [...values, member.user_id])} />{member.display_name} <span className="text-slate-500">{member.position}</span></label>)}</div><div className="mt-3 flex gap-2"><button className={buttonClass} onClick={invite}>Send invitations ({selectedPlayers.length})</button><button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => setActiveGame(null)}>Cancel</button></div></section>}<div className="space-y-3">{displayGames.map((game) => <article key={game.id} className="rounded-lg border border-slate-200 bg-white p-4"><div className="flex justify-between gap-2"><div><h3 className="font-bold">{game.club_name} · {game.format}</h3><p className="mt-1 text-sm text-slate-600">{new Date(game.scheduled_at).toLocaleString()} · {game.venue}</p></div><span className="rounded bg-slate-100 px-2 py-1 text-xs font-semibold">{game.status.replaceAll("_", " ")}</span></div><p className="mt-3 text-sm">Host roster: <strong>{game.accepted_players}/8 accepted</strong> · {game.host_open_slots} open</p>{game.opponent_club_name && <p className="mt-1 text-sm text-emerald-700">Opponent: {game.opponent_club_name}</p>}<div className="mt-3 flex flex-wrap gap-2">{selectedClub?.id === game.club_id && ["draft", "broadcasting"].includes(game.status) && <button className={buttonClass} onClick={() => setActiveGame(game)}>Invite players</button>}{selectedClub?.id === game.club_id && game.status === "roster_filled" && <button className={buttonClass} onClick={() => publish(game)}>Publish for opponent</button>}{selectedClub?.id !== game.club_id && ["broadcasting", "roster_filled"].includes(game.status) && <><button className={buttonClass} onClick={() => respond(game, "accepted")}>Accept</button><button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => respond(game, "rejected")}>Decline</button></>}</div></article>)}{displayGames.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No games yet.</p>}</div></div>;
 }
 
-function DiscoverView({ cards, selectedClub, onSwipe }: { cards: Card[]; selectedClub?: Club; onSwipe: (card: Card, direction: "like" | "pass") => void }) { if (!selectedClub) return <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">Create a club before discovering opponent games.</p>; const card = cards[0]; return <div><h2 className="text-xl font-bold">Opponent discovery</h2><p className="mt-1 text-sm text-slate-500">Published, fully rostered 8v8 games.</p>{card ? <article className="mt-5 rounded-lg border border-slate-200 bg-white p-5"><span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Looking for an 8-player opponent</span><h3 className="mt-3 text-2xl font-bold">{card.club_name}</h3><p className="mt-1 text-sm text-slate-500">{card.club_area} · {card.club_skill_level} · Rating {card.club_rating.toFixed(1)}</p><dl className="mt-5 space-y-2 text-sm"><div className="flex justify-between border-b border-slate-100 pb-2"><dt>Area</dt><dd>{card.venue_area}</dd></div><div className="flex justify-between border-b border-slate-100 pb-2"><dt>Time</dt><dd>{new Date(card.scheduled_at).toLocaleString()}</dd></div><div className="flex justify-between border-b border-slate-100 pb-2"><dt>Cost/player</dt><dd>₹{card.cost_per_person}</dd></div></dl><div className="mt-5 flex gap-3"><button className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" onClick={() => onSwipe(card, "pass")}>Pass</button><button className={`${buttonClass} flex-1`} onClick={() => onSwipe(card, "like")}>Send challenge</button></div></article> : <p className="mt-5 rounded-md bg-slate-100 p-3 text-sm text-slate-600">No opponent games are available right now.</p>}</div>; }
 
-function RequestsView({ joinRequests, challenges, fixtures, onMembershipDecision, onDecision }: { joinRequests: Member[]; challenges: Challenge[]; fixtures: Challenge[]; onMembershipDecision: (id: string, approve: boolean) => void; onDecision: (id: string, approve: boolean) => void }) { return <div className="space-y-5"><div><h2 className="text-xl font-bold">Requests</h2><p className="mt-1 text-sm text-slate-500">Manage players and opponent clubs.</p></div><section><h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Player join requests</h3><div className="mt-2 space-y-2">{joinRequests.map((item) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-4"><p className="font-bold">{item.display_name}</p><p className="mt-1 text-sm text-slate-600">{item.position ?? "Flexible"} · {item.skill_level ?? "casual"}</p><div className="mt-3 flex gap-2"><button className={buttonClass} onClick={() => onMembershipDecision(item.id, true)}>Approve</button><button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => onMembershipDecision(item.id, false)}>Decline</button></div></article>)}{joinRequests.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No pending player requests.</p>}</div></section><section><h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Incoming challenges</h3><div className="mt-2 space-y-2">{challenges.filter((item) => item.status === "pending").map((item) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-4"><p className="font-bold">{item.challenger_club_name}</p><p className="mt-1 text-sm text-slate-600">wants to play {item.host_club_name}</p><div className="mt-3 flex gap-2"><button className={buttonClass} onClick={() => onDecision(item.id, true)}>Confirm fixture</button><button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => onDecision(item.id, false)}>Decline</button></div></article>)}{challenges.filter((item) => item.status === "pending").length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No incoming challenges.</p>}</div></section><section><h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">Confirmed fixtures</h3><div className="mt-2 space-y-2">{fixtures.map((item) => <article key={item.id} className="rounded-lg border border-emerald-200 bg-emerald-50 p-4"><p className="font-bold">{item.host_club_name} vs {item.challenger_club_name}</p><p className="mt-1 text-sm text-emerald-800">Confirmed 8v8 fixture</p></article>)}{fixtures.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No confirmed fixtures yet.</p>}</div></section></div>; }
+function RequestsView({
+  joinRequests,
+  challenges,
+  outgoingChallenges,
+  fixtures,
+  onMembershipDecision,
+  onDecision
+}: {
+  joinRequests: Member[];
+  challenges: Challenge[];
+  outgoingChallenges: Challenge[];
+  fixtures: Challenge[];
+  onMembershipDecision: (id: string, approve: boolean) => void;
+  onDecision: (id: string, approve: boolean) => void;
+}) {
+  const pendingIncoming = challenges.filter((item) => item.status === "pending");
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold">Requests</h2>
+        <p className="mt-1 text-sm text-slate-500">Player joins and club game requests.</p>
+      </div>
+
+      <section>
+        <h3 className="text-sm font-bold uppercase text-slate-500">Sent game requests</h3>
+        <div className="mt-2 space-y-2">
+          {outgoingChallenges.map((item) => (
+            <article key={item.id} className="rounded-md border border-slate-200 bg-white p-4">
+              <p className="font-semibold">{item.host_club_name}</p>
+              <p className="mt-1 text-sm text-slate-600">Playing as {item.challenger_club_name}</p>
+              <p className="mt-2 text-xs font-semibold capitalize text-emerald-700">{item.status}</p>
+            </article>
+          ))}
+          {outgoingChallenges.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No requests sent yet.</p>}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold uppercase text-slate-500">Incoming challenges</h3>
+        <div className="mt-2 space-y-2">
+          {pendingIncoming.map((item) => (
+            <article key={item.id} className="rounded-md border border-slate-200 bg-white p-4">
+              <p className="font-semibold">{item.challenger_club_name}</p>
+              <p className="mt-1 text-sm text-slate-600">Wants to play {item.host_club_name}</p>
+              <div className="mt-3 flex gap-2">
+                <button className={buttonClass} onClick={() => onDecision(item.id, true)}>Confirm fixture</button>
+                <button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => onDecision(item.id, false)}>Decline</button>
+              </div>
+            </article>
+          ))}
+          {pendingIncoming.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No incoming challenges.</p>}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold uppercase text-slate-500">Player join requests</h3>
+        <div className="mt-2 space-y-2">
+          {joinRequests.map((item) => (
+            <article key={item.id} className="rounded-md border border-slate-200 bg-white p-4">
+              <p className="font-semibold">{item.display_name}</p>
+              <p className="mt-1 text-sm text-slate-600">{item.position ?? "Flexible"} · {item.skill_level ?? "casual"}</p>
+              <div className="mt-3 flex gap-2">
+                <button className={buttonClass} onClick={() => onMembershipDecision(item.id, true)}>Approve</button>
+                <button className="rounded-md border border-slate-300 px-3 py-2 text-sm" onClick={() => onMembershipDecision(item.id, false)}>Decline</button>
+              </div>
+            </article>
+          ))}
+          {joinRequests.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No pending player requests.</p>}
+        </div>
+      </section>
+
+      <section>
+        <h3 className="text-sm font-bold uppercase text-slate-500">Confirmed fixtures</h3>
+        <div className="mt-2 space-y-2">
+          {fixtures.map((item) => (
+            <article key={item.id} className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+              <p className="font-semibold">{item.host_club_name} vs {item.challenger_club_name}</p>
+              <p className="mt-1 text-sm text-emerald-800">Confirmed 8v8 fixture</p>
+            </article>
+          ))}
+          {fixtures.length === 0 && <p className="rounded-md bg-slate-100 p-3 text-sm text-slate-600">No confirmed fixtures yet.</p>}
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function ProfileView({ user, ownedClubs, selectedClubId, onClubChange, onLogout }: { user: User; ownedClubs: Club[]; selectedClubId: string; onClubChange: (value: string) => void; onLogout: () => void }) { return <div className="space-y-4"><div><h2 className="text-xl font-bold">Profile</h2><p className="mt-1 text-sm text-slate-500">{user.phone_number} · {user.city}</p></div>{ownedClubs.length > 0 && <label className="block rounded-lg border border-slate-200 bg-white p-4 text-sm font-medium">Active owner club<select value={selectedClubId} onChange={(event) => onClubChange(event.target.value)} className={fieldClass}>{ownedClubs.map((club) => <option key={club.id} value={club.id}>{club.name}</option>)}</select></label>}<button className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" onClick={onLogout}><LogOut size={16} /> Log out</button></div>; }

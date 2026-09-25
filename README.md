@@ -67,6 +67,15 @@ Password for both: turfmatch123
 
 The seed creates eight additional active players for each club. They use the same password and phone numbers from `+919000000003` upward.
 
+### Try Discover
+
+1. Log in as the Indiranagar FC owner (`+919000000001`). Open **Discover** to see three future 8v8 games from Whitefield Wanderers, HSR Rovers, and Northside FC.
+2. Swipe left or press **Pass** to skip a game. Swipe right or press **Request game** to send a challenge as Indiranagar FC.
+3. Open **Requests** to see the challenge under **Sent game requests**. It stays pending until the host captain approves it.
+4. To try the host side for the Whitefield game, log in as `+919100000001` with password `turfmatch123`. Open **Requests** and confirm or decline the incoming challenge.
+
+`python -m app.seed` creates these sample cards on a new database and can be run again without duplicating existing future published demo games. A card disappears from a club's Discover deck once that club passes or requests it.
+
 ## PostgreSQL
 
 ```text

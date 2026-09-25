@@ -135,6 +135,11 @@ def card_read(card: models.MatchCard, db: Session) -> schemas.MatchCardRead:
     club_area=club.area,
     club_skill_level=club.skill_level,
     club_rating=club.rating,
+    club_description=club.description,
+    club_play_style=club.play_style,
+    club_player_count=club.player_count,
+    club_image_url=club.image_url,
+    venue=game.venue,
     venue_area=game.venue_area,
     scheduled_at=game.scheduled_at,
     cost_per_person=game.cost_per_person,
@@ -463,13 +468,15 @@ def match_card_feed(
   swiped = select(models.Swipe.match_card_id).where(models.Swipe.swiping_club_id == club_id)
   cards = db.scalars(
     select(models.MatchCard)
+    .join(models.MatchCard.game)
     .options(joinedload(models.MatchCard.game))
     .where(
       models.MatchCard.status == models.CardStatus.active,
       models.MatchCard.club_id != club_id,
       models.MatchCard.id.not_in(swiped),
+      models.Game.scheduled_at > datetime.now(UTC),
     )
-    .order_by(models.MatchCard.published_at.desc())
+    .order_by(models.Game.scheduled_at.asc())
   ).all()
   return [card_read(card, db) for card in cards]
 
@@ -482,7 +489,7 @@ def swipe_card(
   db: Session = Depends(get_db),
 ) -> schemas.ChallengeRead | None:
   card = db.scalar(select(models.MatchCard).options(joinedload(models.MatchCard.game)).where(models.MatchCard.id == card_id))
-  if not card or card.status != models.CardStatus.active:
+  if not card or card.status != models.CardStatus.active or card.game.scheduled_at <= datetime.now(UTC):
     fail("Match card is not available", status.HTTP_404_NOT_FOUND)
   club = require_owner(payload.club_id, user, db)
   if card.club_id == club.id:
@@ -525,6 +532,19 @@ def incoming_challenges(
   require_owner(club_id, user, db)
   challenges = db.scalars(
     select(models.Challenge).where(models.Challenge.host_club_id == club_id).order_by(models.Challenge.created_at.desc())
+  ).all()
+  return [challenge_read(challenge, db) for challenge in challenges]
+
+
+@router.get("/clubs/{club_id}/challenges/outgoing", response_model=list[schemas.ChallengeRead])
+def outgoing_challenges(
+  club_id: uuid.UUID, user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[schemas.ChallengeRead]:
+  require_owner(club_id, user, db)
+  challenges = db.scalars(
+    select(models.Challenge)
+    .where(models.Challenge.challenger_club_id == club_id)
+    .order_by(models.Challenge.created_at.desc())
   ).all()
   return [challenge_read(challenge, db) for challenge in challenges]
 

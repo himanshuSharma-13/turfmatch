@@ -151,6 +151,11 @@ class MatchCardRead(BaseModel):
   club_area: str
   club_skill_level: SkillLevel
   club_rating: float
+  club_description: str
+  club_play_style: str
+  club_player_count: int
+  club_image_url: str
+  venue: str
   venue_area: str
   scheduled_at: datetime
   cost_per_person: Decimal
