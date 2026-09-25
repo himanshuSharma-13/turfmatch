@@ -194,7 +194,10 @@ class Swipe(Base):
   match_card_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("match_cards.id", ondelete="CASCADE"), nullable=False)
   swiping_club_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clubs.id", ondelete="CASCADE"), nullable=False)
   swiping_owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-  direction: Mapped[SwipeDirection] = mapped_column(Enum(SwipeDirection, name="swipedirection"), nullable=False)
+  direction: Mapped[SwipeDirection] = mapped_column(
+    Enum(SwipeDirection, name="swipedirection", values_callable=lambda choices: [item.value for item in choices]),
+    nullable=False,
+  )
   created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

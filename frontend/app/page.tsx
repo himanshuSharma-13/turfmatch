@@ -4,7 +4,7 @@ import { CalendarDays, Check, CirclePlus, Compass, LogOut, Users, X } from "luci
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import DiscoverView, { type DiscoverCard } from "./discover-view";
 
-const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8010/api/v1";
+const API = "/api/v1";
 type Tab = "clubs" | "games" | "discover" | "requests" | "profile";
 type Skill = "beginner" | "casual" | "intermediate" | "advanced";
 
@@ -138,6 +138,7 @@ export default function HomePage() {
   async function decideChallenge(id: string, approve: boolean) {
     try {
       await api(`/challenges/${id}/decision`, token, { method: "POST", body: JSON.stringify({ approve }) });
+      setError("");
       setNotice(approve ? "Fixture confirmed." : "Challenge declined.");
       await loadApp();
       if (selectedClub) await loadClubWorkspace(selectedClub.id);
@@ -149,6 +150,7 @@ export default function HomePage() {
   async function decideMembership(id: string, approve: boolean) {
     try {
       await api(`/club-members/${id}/decision`, token, { method: "POST", body: JSON.stringify({ approve }) });
+      setError("");
       setNotice(approve ? "Player added to the club." : "Join request declined.");
       await loadApp();
       if (selectedClub) await loadClubWorkspace(selectedClub.id);
@@ -161,6 +163,8 @@ export default function HomePage() {
     if (!selectedClub) return false;
     try {
       await api(`/match-cards/${card.id}/swipe`, token, { method: "POST", body: JSON.stringify({ club_id: selectedClub.id, direction }) });
+      setError("");
+      setCards((current) => current.filter((item) => item.id !== card.id));
       setNotice(direction === "like" ? "Game request sent. The host captain will review it." : "Card passed.");
       await loadClubWorkspace(selectedClub.id);
       return true;

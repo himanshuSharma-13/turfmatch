@@ -53,7 +53,7 @@ npm install
 npm run dev -- --port 3002
 ```
 
-Open [http://localhost:3002](http://localhost:3002). The frontend expects the backend at `http://127.0.0.1:8010/api/v1`; override it with `NEXT_PUBLIC_API_BASE_URL` if needed. See `frontend/.env.local.example`.
+Open [http://localhost:3002](http://localhost:3002). The frontend forwards `/api/v1` to the backend at `http://127.0.0.1:8010`, so browser requests work when the site is opened from another device. Set `API_BACKEND_URL` in `frontend/.env.local` if the backend runs elsewhere, then restart Next.js. See `frontend/.env.local.example`.
 
 ## Demo accounts
 
